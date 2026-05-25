@@ -1,0 +1,78 @@
+# ============================================================
+# BitNet b1.58 日本語継続事前学習 設定ファイル
+# Target: RTX 5060 (8GB VRAM)
+# ============================================================
+
+model:
+  name: "microsoft/bitnet-b1.58-2B-4T-bf16"
+  max_seq_length: 2048
+  dtype: "bfloat16"
+  load_in_4bit: false           # BitNetは独自量子化のためBnB 4-bit不可。bf16+LoRAで学習
+  attn_implementation: "sdpa"  # "flash_attention_2" or "sdpa"
+  trust_remote_code: false
+
+lora:
+  r: 16
+  lora_alpha: 32
+  lora_dropout: 0.05
+  bias: "none"
+  target_modules:
+    - "q_proj"
+    - "k_proj"
+    - "v_proj"
+    - "o_proj"
+    - "gate_proj"
+    - "up_proj"
+    - "down_proj"
+  task_type: "CAUSAL_LM"
+
+data:
+  source: "wikipedia"           # "llm-jp-corpus-v4", "wikipedia", "mc4", "local_jsonl"
+  local_path: null              # llm-jp-corpus-v4のローカルパス or カスタムJSONLパス
+  text_field: "text"            # テキストフィールド名
+  max_documents: 30000          # 使用する最大文書数
+  min_text_length: 100          # 最小テキスト長（文字数）
+  max_text_length: 50000        # 最大テキスト長（文字数）
+  validation_split: 0.02        # 検証データの割合
+  seed: 42
+  output_dir: "./data/processed"
+
+training:
+  output_dir: "./outputs"
+  num_train_epochs: 1
+  per_device_train_batch_size: 2    # bf16ロードのためQLoRAより多くのVRAMを使う
+  per_device_eval_batch_size: 2
+  gradient_accumulation_steps: 8    # effective batch = 2 * 8 = 16
+  learning_rate: 1.0e-5
+  weight_decay: 0.01
+  warmup_ratio: 0.05
+  lr_scheduler_type: "cosine"
+  max_grad_norm: 1.0
+  bf16: true
+  fp16: false
+  gradient_checkpointing: true
+  logging_steps: 10
+  eval_steps: 200
+  save_steps: 400
+  save_total_limit: 3
+  evaluation_strategy: "steps"
+  dataloader_num_workers: 2
+  dataloader_pin_memory: true
+  remove_unused_columns: false
+  report_to:
+    - "tensorboard"
+    - "wandb"
+  run_name: "bitnet-b158-ja-cpt"
+  seed: 42
+  optim: "paged_adamw_8bit"
+
+wandb:
+  project: "bitnet-b158-japanese"
+  entity: null
+  tags:
+    - "bitnet"
+    - "japanese"
+    - "continual-pretraining"
+    - "qlora"
+
+backend: "auto"  # "unsloth" or "hf_peft" or "auto"
