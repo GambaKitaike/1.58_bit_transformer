@@ -90,10 +90,11 @@ def load_model_hf_peft(model_cfg: dict, lora_cfg: dict):
 
     model = AutoModelForCausalLM.from_pretrained(
         model_cfg["name"],
-        device_map="auto",
+        device_map={"": 0},
         dtype=compute_dtype,
         attn_implementation=model_cfg.get("attn_implementation", "sdpa"),
         trust_remote_code=model_cfg.get("trust_remote_code", False),
+        low_cpu_mem_usage=True,
     )
 
     tokenizer = AutoTokenizer.from_pretrained(model_cfg["name"])

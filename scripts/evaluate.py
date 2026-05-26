@@ -18,7 +18,9 @@ import torch
 import yaml
 from datasets import load_from_disk
 from tqdm import tqdm
-from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
+import torch._dynamo
+torch._dynamo.config.disable = True
+from transformers import AutoModelForCausalLM, AutoTokenizer
 from peft import PeftModel
 
 
@@ -30,28 +32,19 @@ def load_config(config_path: str) -> dict:
 def load_finetuned_model(
     base_model_name: str,
     adapter_path: str,
-    load_in_4bit: bool = True,
+    load_in_4bit: bool = False,
     device: str = "cuda",
 ):
     """ファインチューニング済みモデル（ベース + LoRAアダプタ）をロード"""
     print(f"[INFO] Loading base model: {base_model_name}")
     print(f"[INFO] Loading adapter from: {adapter_path}")
 
-    bnb_config = None
-    if load_in_4bit:
-        bnb_config = BitsAndBytesConfig(
-            load_in_4bit=True,
-            bnb_4bit_quant_type="nf4",
-            bnb_4bit_compute_dtype=torch.bfloat16,
-            bnb_4bit_use_double_quant=True,
-        )
-
     model = AutoModelForCausalLM.from_pretrained(
         base_model_name,
-        quantization_config=bnb_config,
-        device_map="auto",
-        torch_dtype=torch.bfloat16,
+        device_map={"": 0},
+        dtype=torch.bfloat16,
         attn_implementation="sdpa",
+        low_cpu_mem_usage=True,
     )
 
     model = PeftModel.from_pretrained(model, adapter_path)
@@ -66,26 +59,17 @@ def load_finetuned_model(
 
 def load_base_model(
     model_name: str,
-    load_in_4bit: bool = True,
+    load_in_4bit: bool = False,
 ):
     """ベースモデルのみをロード（比較用）"""
     print(f"[INFO] Loading base model (no adapter): {model_name}")
 
-    bnb_config = None
-    if load_in_4bit:
-        bnb_config = BitsAndBytesConfig(
-            load_in_4bit=True,
-            bnb_4bit_quant_type="nf4",
-            bnb_4bit_compute_dtype=torch.bfloat16,
-            bnb_4bit_use_double_quant=True,
-        )
-
     model = AutoModelForCausalLM.from_pretrained(
         model_name,
-        quantization_config=bnb_config,
-        device_map="auto",
-        torch_dtype=torch.bfloat16,
+        device_map={"": 0},
+        dtype=torch.bfloat16,
         attn_implementation="sdpa",
+        low_cpu_mem_usage=True,
     )
 
     tokenizer = AutoTokenizer.from_pretrained(model_name)
